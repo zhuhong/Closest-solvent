@@ -441,15 +441,18 @@ int main(int argc,char * argv[])
 	char * index_file;
 	// char * data_file;
 	char * trjout_file;
+	float cutoff = 1.0;
 
 	switch(argc)
 	{
-		case 5:
+		case 6:
 			coor_file = argv[1];
 			traj_file = argv[2];
 			index_file = argv[3];
 			trjout_file = argv[4];
-			pRDF(traj_file,coor_file,index_file,trjout_file,1.0);
+			cutoff = atoi(argv[5]);
+
+			pRDF(traj_file,coor_file,index_file,trjout_file,cutoff);
 			break;
 
 		case 2:
