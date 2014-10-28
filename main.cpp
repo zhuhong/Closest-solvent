@@ -11,6 +11,7 @@ About:
 #include <vector>
 #include <map>
 #include <iomanip>
+#include <algorithm> // sort
 #include <stdlib.h>
 
 #include "string_operate.h"
@@ -25,7 +26,7 @@ extern "C"
 #include "xdrfile_xtc.h"
 }
 
-pair<float,int> Min_dist(rvec *x,vector<int> solu_l,float * grid, float * center)
+pair<float,int> Min_dist(rvec *x,vector<int> solu_l, int solvent)
 {
     // '''
     // atom_l: A full atom list.
@@ -34,6 +35,11 @@ pair<float,int> Min_dist(rvec *x,vector<int> solu_l,float * grid, float * center
     // '''
     float min_dist = 0.0;
     int   min_index =0;
+    float grid[3];
+    for(int i=0;i<3;i++)
+    {
+    	grid[i]= x[solvent-1][i];
+    }
 
     for (int i=0; i< solu_l.size();i++)
     {
@@ -60,13 +66,17 @@ pair<float,int> Min_dist(rvec *x,vector<int> solu_l,float * grid, float * center
 }
 
 
-// def Dist(atom_l,origin,solv_i):
-//     dist=(atom_l[solv_i].atom_coor_x-origin[0])**2 \
-//     + (atom_l[solv_i].atom_coor_y-origin[1])**2 \
-//     + (atom_l[solv_i].atom_coor_z-origin[2])**2
-
-//     return math.sqrt(dist)
-
+float Dist(rvec * X_in, float * origin, int solv_i)
+{
+	float dist ;
+	for (int i=0;i<3;i++)
+	{
+    	dist= pow(X_in[solv_i-1][0] - origin[0],2) \
+    	+ pow(X_in[solv_i-1][1] - origin[1],2) \
+     	+ pow(X_in[solv_i-1][2] - origin[2],2) ;
+	}
+    return sqrt(dist);
+}
 // def Get_solvent_list(atom_list):
 //     solvent_list = list()
 //     for atom in atom_list:
@@ -77,39 +87,44 @@ pair<float,int> Min_dist(rvec *x,vector<int> solu_l,float * grid, float * center
 
 //     return solvent_list
 
-void Get_solute_center(rvec * X_in, vector<int> solute_list, float * center)
+void Get_solute_center(rvec * X_in, vector<int> solute_list, float center[])
 {
-    for (int i=0;i<3;++)
+    for (int i=0;i<3;i++)
     {
     	center[i]=0.0;//[0.0,0.0,0.0];
     }
     for (int i=0;i< solute_list.size();i++)
     {
-        item = solute_list[i];
+        int item = solute_list[i];
         center[0] = center[0] + X_in[item-1][0];
         center[1] = center[1] + X_in[item-1][1];
         center[2] = center[2] + X_in[item-1][2];
     }
     // # print center 
-    for (int i=0;i<3;++)
+    for (int i=0;i<3;i++)
     {
         center[i] = center[i]/solute_list.size();
     }
 }
 
 
-// def Get_Cutoff(atom_list,center,sorted_sol_dist,sol_dict,WAT_NUMBER):
-//     CUT_OFF= 0.0
-//     for i in range(WAT_NUMBER):
-//         temp_id=sol_dict[sorted_sol_dist[i]]
-//         dist=((atom_list[temp_id].atom_coor_x-center[0])**2 +\
-//             (atom_list[temp_id].atom_coor_y-center[1])**2 +\
-//             (atom_list[temp_id].atom_coor_z-center[2])**2)
-//         if dist > CUT_OFF:
-//             CUT_OFF= dist
+float Get_Cutoff(rvec * X_in,float * center,vector<float> sol_dist,map<float,int> sol_dict,int WAT_NUMBER)
+{
+    float CUT_OFF= 0.0;
+    for (int i=0; i< WAT_NUMBER; i++)
+    {
+        int temp_id=sol_dict[sol_dist[i]];
 
-//     return math.sqrt(CUT_OFF)*1.2
-
+        float dist=(pow(X_in[temp_id-1][0]-center[0] ,2) +\
+                    pow(X_in[temp_id-1][1]-center[1], 2) +\
+            		pow(X_in[temp_id-1][2]-center[2], 2));
+        if (dist > CUT_OFF)
+        {
+            CUT_OFF= dist;
+        }
+	}
+    return sqrt(CUT_OFF)*1.2;
+}
 
 
 void pRDF(char * top_file, char * trj_file,char * index_file,char * trjout_file, float CUT_OFF)
@@ -117,9 +132,10 @@ void pRDF(char * top_file, char * trj_file,char * index_file,char * trjout_file,
     /*
     Save the WAT_NUMBER closest water molecules to a new trajectory file.
     */
-    // START_TIME       =Time.time()
     
     map<int,atom> atom_list    =read_pdb_to_atom(top_file);
+    int solute_index;
+    int solvent_index;
     // atom_list        =copy.deepcopy(Atoms)
     vector <Index_class> index_list       =Read_index_to_Inclass(index_file);
 	Print_Index(index_list);
@@ -137,11 +153,14 @@ void pRDF(char * top_file, char * trj_file,char * index_file,char * trjout_file,
     //     sys.exit()
 
 	int natoms,step;
+	int OUTPUT_ATOMS;
+	float OFF;
 	float time_temp;
 	float p;
 	// vector<double> result;
 	matrix box;
 	rvec *X_in;
+	rvec *X_out;
 	XDRFILE *xtc_in;
 	XDRFILE *xtc_out;
 	xtc_in=xdrfile_open(trj_file,"r");
@@ -163,7 +182,7 @@ void pRDF(char * top_file, char * trj_file,char * index_file,char * trjout_file,
     bool FIRST_FRAME =true;
     // TEST_SET    = true;
     // test_count  =0
-    // solu_set   =set()
+    float center[3];
     // OFF     =0.0
     while(1)
     {
@@ -193,205 +212,252 @@ void pRDF(char * top_file, char * trj_file,char * index_file,char * trjout_file,
         else
         {
             int _tmp_count =0;
-            float center[3];
-            Get_solute_center(X_in,solute_list,center);
+            
+            Get_solute_center(X_in,solute_list, center);
             for (int i=0;i< solvent_list.size();i++)
             { //solvent in solvent_list:
-            	solvent = solvent_list[i];
+            	int solvent = solvent_list[i];
                 float dist = Dist(X_in,center,solvent);
                 if (dist  > OFF )
                 {
                     continue;
                 }
-
-                _dist_2,_solu_2 = Min_dist(X_in,solute_list,solvent);
-                sol_dist.append(_dist_2);
-                sol_dict[_dist_2]=solvent;
+                pair <float,int> min_dist_index; 
+                min_dist_index = Min_dist(X_in,solute_list,solvent);
+                float min_dist= min_dist_index.first;
+                sol_dist.push_back(min_dist);
+                sol_dict[min_dist]=solvent;
             }
 		}
 
-        sorted_sol_dist=sorted(sol_dist);
+        sort(sol_dist.begin(),sol_dist.end());
 
 
-        if (FIRST_FRAME == True)
+        if (FIRST_FRAME == true)
         {
-            for xx,item in enumerate(sorted_sol_dist):
-               if item > CUT_OFF:
-                    WAT_NUMBER = xx+1
-                    break
+            // for xx,item in enumerate(sorted_sol_dist):
+            for(int i=0;i< sol_dist.size();++i)
+            {
+            	float item = sol_dist[i];
+                if (item > CUT_OFF)
+                {
+                    WAT_NUMBER = i+1;
+                    break;
+                }
+            }
 
-            OUTPUT_ATOMS =len(solute_atom_list)+3*WAT_NUMBER
-            x_out        =numpy.zeros((OUTPUT_ATOMS,libxdrfile.DIM),dtype=numpy.float32)
-            print "WAT_NUMBER: %d ;" %(WAT_NUMBER)
+            OUTPUT_ATOMS =solute_list.size()+3*WAT_NUMBER;
+            // x_out        =numpy.zeros((OUTPUT_ATOMS,libxdrfile.DIM),dtype=numpy.float32);
+            X_out=(rvec * )calloc(OUTPUT_ATOMS,sizeof(X_in[0]));
+            // print "WAT_NUMBER: %d ;" %(WAT_NUMBER)
 
-            SOLUTE_CENTER=Get_solute_center(atom_list,solute_atom_list)
+            Get_solute_center(X_in,solute_list,center);
 // #           print SOLUTE_CENTER
-            OFF = Get_Cutoff(atom_list,SOLUTE_CENTER,sorted_sol_dist,sol_dict,WAT_NUMBER)
+            OFF = Get_Cutoff(X_in,center,sol_dist,sol_dict,WAT_NUMBER);
 		}
 
 
         // #########################################
-        for i in range(len(solute_atom_list)):
-            x_out[i,0] =x[solute_atom_list[i]-1,0]
-            x_out[i,1] =x[solute_atom_list[i]-1,1]
-            x_out[i,2] =x[solute_atom_list[i]-1,2]    
-        for i in range(WAT_NUMBER):
-            for j in range(3):
-                x_out[len(solute_atom_list)+3*i+j,0] =x[sol_dict[sorted_sol_dist[i]]-1+j,0]
-                x_out[len(solute_atom_list)+3*i+j,1] =x[sol_dict[sorted_sol_dist[i]]-1+j,1]
-                x_out[len(solute_atom_list)+3*i+j,2] =x[sol_dict[sorted_sol_dist[i]]-1+j,2]
+        // for i in range(len(solute_atom_list)):
+        for (int i=0;i< solute_list.size();i++)
+        {
+        	int item = solute_list[i];
+            X_out[i][0] =X_in[item-1][0];
+            X_out[i][1] =X_in[item-1][1];
+            X_out[i][2] =X_in[item-1][2];    
+        }
+        // for i in range(WAT_NUMBER):
+        for(int i=0;i< WAT_NUMBER; i++)
+        {
+            for (int j=0; j< 3;j++)
+            {
+            	int solute_size = solute_list.size();
+                X_out[solute_size+3*i+j][0] =X_in[sol_dict[sol_dist[i]]-1+j][0];
+                X_out[solute_size+3*i+j][1] =X_in[sol_dict[sol_dist[i]]-1+j][1];
+                X_out[solute_size+3*i+j][2] =X_in[sol_dict[sol_dist[i]]-1+j][2];
+            }
+        }
 
-        status2=libxdrfile.write_xtc(XTC_write,step,time,box,x_out,prec)
+        // status2=libxdrfile.write_xtc(XTC_write,step,time,box,x_out,prec);
+        read_return = write_xtc(xtc_out, OUTPUT_ATOMS, step, time_temp, box, X_out, p);
+				     // box_xtc, x_xtc, prec_xtc);
+
+                // read_return=read_xtc(xtc_in,natoms,&step,&time_temp,box,X_in,&p);
 
         if (FIRST_FRAME == true)
         {
-            new_list=[atom_list[i] for i in solute_atom_list]
-            for i in range(WAT_NUMBER):
-                new_list.append(atom_list[sol_dict[sorted_sol_dist[i]]])
-                new_list.append(atom_list[sol_dict[sorted_sol_dist[i]]+1])
-                new_list.append(atom_list[sol_dict[sorted_sol_dist[i]]+2])
-
-            out_file=string.split(trjout_file,'.')[0]+".pdb"
-            Simple_atom.Save_file(out_file,new_list)
+            map<int,atom> new_list; 
+            for (int i=0;i< solute_list.size(); i++)
+			{
+				int item = solute_list[i];
+				new_list[item] = atom_list[item];
+				new_list[item].x = X_in[item-1][0];
+				new_list[item].y = X_in[item-1][1];
+				new_list[item].z = X_in[item-1][2];
+			}
+			int solute_size = solute_list.size();
+            for (int i=0;i < WAT_NUMBER; i++) 
+            {
+            	for(int j=0;j<3;j++)
+            	{
+            		struct atom temp_atom;
+            		int serial;
+            		serial = sol_dict[sol_dist[i]]+j;
+					temp_atom = atom_list[serial];
+					temp_atom.x = X_in[serial-1][0];
+					temp_atom.y = X_in[serial-1][1];
+					temp_atom.z = X_in[serial-1][2];
+                	// new_list.append(atom_list[sol_dict[sorted_sol_dist[i]]])
+                	// new_list.append(atom_list[sol_dict[sorted_sol_dist[i]]+1])
+                	// new_list.append(atom_list[sol_dict[sorted_sol_dist[i]]+2])
+            	}
+            }
+            string out_file=Split(trjout_file,'.',0)+".pdb";
+            write_pdb(new_list,out_file.c_str());
 
             FIRST_FRAME = false;
         }
 
-        NOW_TIME=Time.time()
-        BIN_TIME=NOW_TIME-START_TIME
-        sys.stderr.write("step %10d, time %10.2f ps, time used: %6.2f s\r" %(step,time,BIN_TIME))
-        sys.stderr.flush()
+        // NOW_TIME=Time.time()
+        // BIN_TIME=NOW_TIME-START_TIME
+        // sys.stderr.write("step %10d, time %10.2f ps, time used: %6.2f s\r" %(step,time,BIN_TIME))
+        // sys.stderr.flush()
 	}
     // # finally close file
-    print ""
-    libxdrfile.xdrfile_close(XTC)
+    // print ""
+    xdrfile_close(xtc_in);
+    xdrfile_close(xtc_out);
     // # libxdrfile.xdrfile_close(XTC_write)
 }
 
-def For_allsolvent(top_file,trj_file,trjout_file,WAT_NUMBER=500):
-    '''
-    Save the WAT_NUMBER closest water molecules to a new trajectory file.
-    '''
-    START_TIME       =Time.time()
+// def For_allsolvent(top_file,trj_file,trjout_file,WAT_NUMBER=500):
+//     '''
+//     Save the WAT_NUMBER closest water molecules to a new trajectory file.
+//     '''
+//     START_TIME       =Time.time()
     
-    Atoms            =Simple_atom.Get_atom_list(top_file)
-    atom_list        =copy.deepcopy(Atoms)
-    # index_list       =Index.Read_index_to_Inclass(index_file)
-    # solute_atom_list =index_list[solute_index].group_list
-    solvent_list     =Get_solvent_list(atom_list)
+//     Atoms            =Simple_atom.Get_atom_list(top_file)
+//     atom_list        =copy.deepcopy(Atoms)
+//     # index_list       =Index.Read_index_to_Inclass(index_file)
+//     # solute_atom_list =index_list[solute_index].group_list
+//     solvent_list     =Get_solvent_list(atom_list)
 
-    if len(solvent_list) < WAT_NUMBER:
-        print "Error: The number of water molecules (%d) is less than the critical number (%d)." %(len(solvent_list),WAT_NUMBER)
+//     if len(solvent_list) < WAT_NUMBER:
+//         print "Error: The number of water molecules (%d) is less than the critical number (%d)." %(len(solvent_list),WAT_NUMBER)
 
-    natoms       = libxdrfile.read_xtc_natoms(trj_file)
-    x            = numpy.zeros((natoms, libxdrfile.DIM), dtype=numpy.float32)
-    box          = numpy.zeros((libxdrfile.DIM,libxdrfile.DIM), dtype=numpy.float32)
-    XTC          = libxdrfile.xdrfile_open(trj_file, 'r')
+//     natoms       = libxdrfile.read_xtc_natoms(trj_file)
+//     x            = numpy.zeros((natoms, libxdrfile.DIM), dtype=numpy.float32)
+//     box          = numpy.zeros((libxdrfile.DIM,libxdrfile.DIM), dtype=numpy.float32)
+//     XTC          = libxdrfile.xdrfile_open(trj_file, 'r')
     
-    OUTPUT_ATOMS =3*WAT_NUMBER
-    XTC_write    =libxdrfile.xdrfile_open(trjout_file,'w')
-    x_out        =numpy.zeros((OUTPUT_ATOMS,libxdrfile.DIM),dtype=numpy.float32)
+//     OUTPUT_ATOMS =3*WAT_NUMBER
+//     XTC_write    =libxdrfile.xdrfile_open(trjout_file,'w')
+//     x_out        =numpy.zeros((OUTPUT_ATOMS,libxdrfile.DIM),dtype=numpy.float32)
 
-# loop through file until return status signifies end or a problem
-# (it should become exdrENDOFFILE on the last iteration)
-    status      = libxdrfile.exdrOK
-    status2     = libxdrfile.exdrOK
-    FIRST_FRAME =True
-    # center=numpy.array([0.0,0.0,0.0])
-    while status == libxdrfile.exdrOK and status2 == libxdrfile.exdrOK:
-        status,step,time,prec = libxdrfile.read_xtc(XTC, box, x)
-        # do something with x
-        sol_dict=dict()
-        sol_dist=list()
+// # loop through file until return status signifies end or a problem
+// # (it should become exdrENDOFFILE on the last iteration)
+//     status      = libxdrfile.exdrOK
+//     status2     = libxdrfile.exdrOK
+//     FIRST_FRAME =True
+//     # center=numpy.array([0.0,0.0,0.0])
+//     while status == libxdrfile.exdrOK and status2 == libxdrfile.exdrOK:
+//         status,step,time,prec = libxdrfile.read_xtc(XTC, box, x)
+//         # do something with x
+//         sol_dict=dict()
+//         sol_dist=list()
 
-###############
-        for i in atom_list:
-            u_atom = MDPackage.Coor.unit_atom.unit_atom(atom_coor_x=x[i-1,0],atom_coor_y=x[i-1,1],atom_coor_z=x[i-1,2])
-            atom_list[i]=u_atom
+// ###############
+//         for i in atom_list:
+//             u_atom = MDPackage.Coor.unit_atom.unit_atom(atom_coor_x=x[i-1,0],atom_coor_y=x[i-1,1],atom_coor_z=x[i-1,2])
+//             atom_list[i]=u_atom
 
-###############
+// ###############
         
-        if FIRST_FRAME == True:
-            center=numpy.array([box[0,0]/2,box[1,1]/2,box[2,2]/2])
-#            FIRST_FRAME = False
+//         if FIRST_FRAME == True:
+//             center=numpy.array([box[0,0]/2,box[1,1]/2,box[2,2]/2])
+// #            FIRST_FRAME = False
 
-        for solvent in solvent_list:
-            dist=Dist(atom_list,center,solvent)
-            sol_dist.append(dist)
-            sol_dict[dist]=solvent
+//         for solvent in solvent_list:
+//             dist=Dist(atom_list,center,solvent)
+//             sol_dist.append(dist)
+//             sol_dict[dist]=solvent
 
 
-        sorted_sol_dist=sorted(sol_dist)
-        STANDARD=sorted_sol_dist[WAT_NUMBER+1]
+//         sorted_sol_dist=sorted(sol_dist)
+//         STANDARD=sorted_sol_dist[WAT_NUMBER+1]
   
-        for i in range(WAT_NUMBER):
-            for j in range(3):
-                x_out[3*i+j,0] =x[sol_dict[sorted_sol_dist[i]]-1+j,0]
-                x_out[3*i+j,1] =x[sol_dict[sorted_sol_dist[i]]-1+j,1]
-                x_out[3*i+j,2] =x[sol_dict[sorted_sol_dist[i]]-1+j,2]
+//         for i in range(WAT_NUMBER):
+//             for j in range(3):
+//                 x_out[3*i+j,0] =x[sol_dict[sorted_sol_dist[i]]-1+j,0]
+//                 x_out[3*i+j,1] =x[sol_dict[sorted_sol_dist[i]]-1+j,1]
+//                 x_out[3*i+j,2] =x[sol_dict[sorted_sol_dist[i]]-1+j,2]
 
-        status2=libxdrfile.write_xtc(XTC_write,step,time,box,x_out,prec)
+//         status2=libxdrfile.write_xtc(XTC_write,step,time,box,x_out,prec)
 
-        if FIRST_FRAME == True:
-            new_list=list()
-            for i in range(WAT_NUMBER):
-                new_list.append(Atoms[sol_dict[sorted_sol_dist[i]]])
-                new_list.append(Atoms[sol_dict[sorted_sol_dist[i]]+1])
-                new_list.append(Atoms[sol_dict[sorted_sol_dist[i]]+2])
+//         if FIRST_FRAME == True:
+//             new_list=list()
+//             for i in range(WAT_NUMBER):
+//                 new_list.append(Atoms[sol_dict[sorted_sol_dist[i]]])
+//                 new_list.append(Atoms[sol_dict[sorted_sol_dist[i]]+1])
+//                 new_list.append(Atoms[sol_dict[sorted_sol_dist[i]]+2])
 
-            out_file=string.split(trjout_file,'.')[0]+".pdb"
-            Simple_atom.Save_file(out_file,new_list)
+//             out_file=string.split(trjout_file,'.')[0]+".pdb"
+//             Simple_atom.Save_file(out_file,new_list)
 
-            FIRST_FRAME = False
+//             FIRST_FRAME = False
 
-        NOW_TIME=Time.time()
-        BIN_TIME=NOW_TIME-START_TIME
-        if step % 1000 == 0:
-            sys.stderr.write("step %10d, time %10.2f ps, time used: %6.2f s\r" %(step,time,BIN_TIME))
-            sys.stderr.flush()
+//         NOW_TIME=Time.time()
+//         BIN_TIME=NOW_TIME-START_TIME
+//         if step % 1000 == 0:
+//             sys.stderr.write("step %10d, time %10.2f ps, time used: %6.2f s\r" %(step,time,BIN_TIME))
+//             sys.stderr.flush()
 
-    # finally close file
-    print ""
-    libxdrfile.xdrfile_close(XTC)
-    libxdrfile.xdrfile_close(XTC_write)
-
-
-
-def Check_args():
-    if len(sys.argv) == 6:
-        top_file    =sys.argv[1]
-        trj_file    =sys.argv[2]
-        index_file  =sys.argv[3]
-        trjout_file =sys.argv[4]
-        # WAT_NUMBER  =int(sys.argv[5])
-        CUT_OFF     =float(sys.argv[5])
-
-        index_list=Index.Read_index_to_Inclass(index_file)
-        Index.Print_Index(index_list)
-        while True:
-            try:
-                solute_index=int(raw_input("Choose the solute index:"))
-                break
-            except:
-                print "You should input a number."
-                continue
-
-        pRDF(top_file,trj_file,index_file,trjout_file,solute_index,CUT_OFF)
-
-    elif len(sys.argv) == 5:
-        top_file    =sys.argv[1]
-        trj_file    =sys.argv[2]
-        trjout_file =sys.argv[3]
-        WAT_NUMBER  =int(sys.argv[4])
-        For_allsolvent(top_file,trj_file,trjout_file,WAT_NUMBER)
-
-    else: 
-        print "Usage: "
-        print "For solute,  using: Closest_solvent.py top_file trj_file index_file trjout_file CUT_OFF"
-        print "For solvent, using: Closest_solvent.py top_file trj_file trjout_file WAT_NUMBER"
+//     # finally close file
+//     print ""
+//     libxdrfile.xdrfile_close(XTC)
+//     libxdrfile.xdrfile_close(XTC_write)
 
 
 
-if __name__ == '__main__':
-    Check_args()
 
+void Print_usage()
+{
+	cout<<"\t\t"<<":-)  Closest solvent  (-:"<<endl;
+	cout<<"------------------------------------------------"<<endl;
+	cout<<"This is is a program designed for calculating proximal rdf of solvent."<<endl;
+	cout<<endl;
+	cout<<"------------------------------------------------"<<endl;
+	cout << "Usage: Closest-solvent coor_file traj_file index_file trjout_file CUT_OFF"<< endl;
+	cout<<"------------------------------------------------"<<endl;
+	cout<<"Written by Zhu H. VERSION 1.0.0"<<endl;
+	cout<<endl;
+}
+
+int main(int argc,char * argv[])
+{
+	// unit is nm
+	char * coor_file;
+	char * traj_file;
+	char * index_file;
+	// char * data_file;
+	char * trjout_file;
+
+	switch(argc)
+	{
+		case 5:
+			coor_file = argv[1];
+			traj_file = argv[2];
+			index_file = argv[3];
+			trjout_file = argv[4];
+			pRDF(traj_file,coor_file,index_file,trjout_file,1.0);
+			break;
+
+		case 2:
+			Print_usage();
+			exit(0);
+
+		default:
+			Print_usage();
+			exit(0);
+	}
+}
