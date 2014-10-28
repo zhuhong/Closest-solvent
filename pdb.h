@@ -52,7 +52,7 @@ map<int, atom> read_pdb_to_atom(char * pdb_file_name)
 		if(s.find("ATOM")<100||s.find("HETATM")<100)
 		{
 			struct atom item;
-
+			strcpy(item.character,Split(s.substr(0,6),' ',0).c_str());
 			item.atom_serial=atoi(Split(s.substr(6,5),' ',0).c_str());
 			strcpy(item.atom_name,Split(s.substr(12,4),' ',0).c_str());
 			strcpy(item.residue_name,Split(s.substr(17,3),' ',0).c_str());
@@ -123,7 +123,7 @@ void write_pdb(map<int,atom> atom_list, const char * file_name)
 	//		cout<<setw(2)<<it->chain_identifier;
 		}
 		else{
-			out<<" ";
+			out<<"  ";
 		}
 		if(it->second.residue_serial!=NULL){
 			out<<setiosflags(ios::right)<<setw(4)<<it->second.residue_serial;

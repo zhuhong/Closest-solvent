@@ -26,6 +26,7 @@ extern "C"
 #include "xdrfile_xtc.h"
 }
 
+
 pair<float,int> Min_dist(rvec *x,vector<int> solu_l, int solvent)
 {
     // '''
@@ -163,11 +164,12 @@ void pRDF(char * top_file, char * trj_file,char * index_file,char * trjout_file,
 	rvec *X_out;
 	XDRFILE *xtc_in;
 	XDRFILE *xtc_out;
-	xtc_in=xdrfile_open(trj_file,"r");
+	xtc_in	= xdrfile_open(trj_file,"r");
+	xtc_out = xdrfile_open(trjout_file,"w");
 	int read_return=read_xtc_natoms(trj_file,&natoms);
 	X_in=(rvec * )calloc(natoms,sizeof(X_in[0]));
 
-	xtc_out = xdrfile_open(trjout_file,"w");
+	
 
 
 
@@ -189,11 +191,19 @@ void pRDF(char * top_file, char * trj_file,char * index_file,char * trjout_file,
         read_return=read_xtc(xtc_in,natoms,&step,&time_temp,box,X_in,&p);
         if(read_return!=0)
 		{
+			cout << "hello world"<< endl;
+			cout << read_return << endl;
 			break;
 		}
+		cout << "reading frame: "<< time_temp<< endl;
+		// if (FIRST_FRAME == false)
+		// {
+		// 	break;
+		// }
         // # do something with x
         map<float,int> sol_dict;
         vector<float> sol_dist;
+	
 
 
         if ( FIRST_FRAME == true)
@@ -204,6 +214,7 @@ void pRDF(char * top_file, char * trj_file,char * index_file,char * trjout_file,
             	int solvent = solvent_list[i];
                 min_dist_index=Min_dist(X_in,solute_list,solvent);
                 float min_dist= min_dist_index.first;
+                // cout << min_dist << endl;
                 // min_index = min_dist_index.second;
                 sol_dist.push_back(min_dist);
                 sol_dict[min_dist]=solvent;
@@ -230,7 +241,10 @@ void pRDF(char * top_file, char * trj_file,char * index_file,char * trjout_file,
             }
 		}
 
+		// cout << sol_dist[0]<< endl;
         sort(sol_dist.begin(),sol_dist.end());
+        // cout << sol_dist[0]<< endl;
+        // cout << sol_dist.size()<< endl;
 
 
         if (FIRST_FRAME == true)
@@ -245,8 +259,10 @@ void pRDF(char * top_file, char * trj_file,char * index_file,char * trjout_file,
                     break;
                 }
             }
+            cout << WAT_NUMBER << endl;
 
             OUTPUT_ATOMS =solute_list.size()+3*WAT_NUMBER;
+            cout << OUTPUT_ATOMS << endl;
             // x_out        =numpy.zeros((OUTPUT_ATOMS,libxdrfile.DIM),dtype=numpy.float32);
             X_out=(rvec * )calloc(OUTPUT_ATOMS,sizeof(X_in[0]));
             // print "WAT_NUMBER: %d ;" %(WAT_NUMBER)
@@ -291,9 +307,9 @@ void pRDF(char * top_file, char * trj_file,char * index_file,char * trjout_file,
 			{
 				int item = solute_list[i];
 				new_list[item] = atom_list[item];
-				new_list[item].x = X_in[item-1][0];
-				new_list[item].y = X_in[item-1][1];
-				new_list[item].z = X_in[item-1][2];
+				new_list[item].x = X_in[item-1][0] * 10;
+				new_list[item].y = X_in[item-1][1] * 10;
+				new_list[item].z = X_in[item-1][2] * 10;
 			}
 			int solute_size = solute_list.size();
             for (int i=0;i < WAT_NUMBER; i++) 
@@ -304,9 +320,10 @@ void pRDF(char * top_file, char * trj_file,char * index_file,char * trjout_file,
             		int serial;
             		serial = sol_dict[sol_dist[i]]+j;
 					temp_atom = atom_list[serial];
-					temp_atom.x = X_in[serial-1][0];
-					temp_atom.y = X_in[serial-1][1];
-					temp_atom.z = X_in[serial-1][2];
+					temp_atom.x = X_in[serial-1][0] * 10;
+					temp_atom.y = X_in[serial-1][1] * 10;
+					temp_atom.z = X_in[serial-1][2] * 10;
+					new_list[serial] = temp_atom;
                 	// new_list.append(atom_list[sol_dict[sorted_sol_dist[i]]])
                 	// new_list.append(atom_list[sol_dict[sorted_sol_dist[i]]+1])
                 	// new_list.append(atom_list[sol_dict[sorted_sol_dist[i]]+2])
@@ -450,9 +467,10 @@ int main(int argc,char * argv[])
 			traj_file = argv[2];
 			index_file = argv[3];
 			trjout_file = argv[4];
-			cutoff = atoi(argv[5]);
+			cutoff = atof(argv[5]);
 
-			pRDF(traj_file,coor_file,index_file,trjout_file,cutoff);
+			pRDF(coor_file, traj_file, index_file, trjout_file, cutoff);
+			// void pRDF(char * top_file, char * trj_file,char * index_file,char * trjout_file, float CUT_OFF)
 			break;
 
 		case 2:

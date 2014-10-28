@@ -3,61 +3,62 @@
 TODO:
     write all the atoms of the solvent molecule to the index file.
 '''
-#include <iostream>
-#include <fstream>
-#include <string>
-#include <cmath>
-#include <utility>
-#include <vector>
-#include <map>
-#include <iomanip>
-#include <stdlib.h>
+import math
+import sys
+import numpy
+import copy
+import string
+import MDAnalysis
+import MDPackage
+from MDPackage import Index
+from MDPackage import Simple_atom
+from MDPackage import usage
+import time as Time
 
-#include "string_operate.h"
-#include "read_ndx.h"
-// #include "pdb.h"
-// #include "my_math.h"
+from MDAnalysis.coordinates.xdrfile import libxdrfile2 as libxdrfile 
+#import xdrfile_open, xdrfile_close, read_xtc_natoms, read_xtc, DIM, exdrOK
 
-using namespace std;
 
-extern "C"
-{
-#include "xdrfile_xtc.h"
-}
+def Min_dist(atom_l,solu_l,solv_coor):
+    '''
+    atom_l: A full atom list.
+    solu_l: A solute atom index list.
+    solv_i: Index for one solvent molecule.
+    '''
 
-pair<float,int> Min_dist(rvec *x,vector<int> solu_l,float * grid, float * center)
-{
-	// '''
-	// atom_l: A full atom list.
-	// solu_l: A solute atom index list.
-	// solv_i: Index for one solvent molecule.
-	// '''
-	float min_dist = 0.0;
-	int   min_index =0;
+#     dist_list =[(atom_l[i].atom_coor_x - atom_l[solv_coor].atom_coor_x)**2 \
+#     + (atom_l[i].atom_coor_y - atom_l[solv_coor].atom_coor_y)**2 \
+#     + (atom_l[i].atom_coor_z - atom_l[solv_coor].atom_coor_z)**2 for i in solu_l]
+    
+#     min_dist  =min(dist_list)
+#     min_index =solu_l[dist_list.index(min_dist)]
+# #    print min_dist,min_index
+#     return math.sqrt(min_dist),min_index
 
-	for (int i=0; i< solu_l.size();i++)
-	{
+    dist_list =[[abs(atom_l[i].atom_coor_x - atom_l[solv_coor].atom_coor_x), \
+    abs(atom_l[i].atom_coor_y - atom_l[solv_coor].atom_coor_y), \
+    abs(atom_l[i].atom_coor_z - atom_l[solv_coor].atom_coor_z)] for i in solu_l]
 
-		int item = solu_l[i];
-		float tmp = sqrt(pow(x[item-1][0]-grid[0],2) \
-				+ pow(x[item-1][1]-grid[1],2) \
-				+ pow(x[item-1][2]-grid[2],2));
-		if (i==0)
-		{
-			min_dist = tmp;
-			min_index = item;
-			continue;
-		}
-		if (tmp < min_dist)
-		{
-			min_dist = tmp;
-			min_index = item;
-		}  
-	}
-	pair<float,int> data(min_dist,min_index);
+    min_dist = (dist_list[0][0])**2 \
+    + (dist_list[0][1])**2 \
+    + (dist_list[0][2])**2
+    min_dist = math.sqrt(min_dist)
+    min_index =1;
+    
+    for i in range(len(solu_l)):
+        if dist_list[i][0] < min_dist and dist_list[i][1] < min_dist and dist_list[i][2] < min_dist:
+            tmp = math.sqrt((dist_list[i][0])**2 + (dist_list[i][1])**2 + (dist_list[i][2])**2)
+            if tmp < min_dist:
+                min_dist = tmp
+                min_index = list(solu_l)[i]
+                # print min_dist, min_index
+            else:
+                pass
+        else:
+            pass
 
-	return data;
-}
+#    print min_dist,min_index
+    return min_dist,min_index
 
 
 
