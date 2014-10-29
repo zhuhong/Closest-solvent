@@ -78,15 +78,7 @@ float Dist(rvec * X_in, float * origin, int solv_i)
 	}
     return sqrt(dist);
 }
-// def Get_solvent_list(atom_list):
-//     solvent_list = list()
-//     for atom in atom_list:
-//         if atom_list[atom].residue_name == "WAT" and atom_list[atom].atom_name == "O":
-//             solvent_list.append(atom)
-//         elif atom_list[atom].residue_name == "SOL" and atom_list[atom].atom_name == "OW":
-//             solvent_list.append(atom)
 
-//     return solvent_list
 
 void Get_solute_center(rvec * X_in, vector<int> solute_list, float center[])
 {
@@ -170,17 +162,6 @@ void pRDF(char * top_file, char * trj_file,char * index_file,char * trjout_file,
 	X_in=(rvec * )calloc(natoms,sizeof(X_in[0]));
 
 	
-
-
-
-    
-    // # OUTPUT_ATOMS =len(solute_atom_list)+3*WAT_NUMBER
-    // XTC_write    =libxdrfile.xdrfile_open(trjout_file,'w')
-    // # x_out        =numpy.zeros((OUTPUT_ATOMS,libxdrfile.DIM),dtype=numpy.float32)
-
-// # loop through file until return status signifies end or a problem
-// # (it should become exdrENDOFFILE on the last iteration)
-    // status      = libxdrfile.exdrOK
     bool FIRST_FRAME =true;
     // TEST_SET    = true;
     // test_count  =0
@@ -191,8 +172,8 @@ void pRDF(char * top_file, char * trj_file,char * index_file,char * trjout_file,
         read_return=read_xtc(xtc_in,natoms,&step,&time_temp,box,X_in,&p);
         if(read_return!=0)
 		{
-			cout << "hello world"<< endl;
-			cout << read_return << endl;
+			// cout << "hello world"<< endl;
+			// cout << read_return << endl;
 			break;
 		}
 		cout << "reading frame: "<< time_temp<< endl;
@@ -306,12 +287,14 @@ void pRDF(char * top_file, char * trj_file,char * index_file,char * trjout_file,
             for (int i=0;i< solute_list.size(); i++)
 			{
 				int item = solute_list[i];
+				cout << item<< endl;
 				new_list[item] = atom_list[item];
 				new_list[item].x = X_in[item-1][0] * 10;
 				new_list[item].y = X_in[item-1][1] * 10;
 				new_list[item].z = X_in[item-1][2] * 10;
 			}
 			int solute_size = solute_list.size();
+			cout << solute_size << endl;
             for (int i=0;i < WAT_NUMBER; i++) 
             {
             	for(int j=0;j<3;j++)
@@ -335,10 +318,6 @@ void pRDF(char * top_file, char * trj_file,char * index_file,char * trjout_file,
             FIRST_FRAME = false;
         }
 
-        // NOW_TIME=Time.time()
-        // BIN_TIME=NOW_TIME-START_TIME
-        // sys.stderr.write("step %10d, time %10.2f ps, time used: %6.2f s\r" %(step,time,BIN_TIME))
-        // sys.stderr.flush()
 	}
     // # finally close file
     // print ""
